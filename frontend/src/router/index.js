@@ -6,6 +6,7 @@ import GreenhousesView from '../views/GreenhousesView.vue'
 import ZonesView from '../views/ZonesView.vue'
 import ClimateLogsView from '../views/ClimateLogsView.vue'
 import IrrigationView from '../views/IrrigationView.vue'
+import WaterBillsView from '../views/WaterBillsView.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -16,6 +17,7 @@ const router = createRouter({
     { path: '/zones', name: 'zones', component: ZonesView },
     { path: '/climate-logs', name: 'climate-logs', component: ClimateLogsView },
     { path: '/irrigation', name: 'irrigation', component: IrrigationView },
+    { path: '/water-bills', name: 'water-bills', component: WaterBillsView },
   ],
 })
 

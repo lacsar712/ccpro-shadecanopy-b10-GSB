@@ -30,6 +30,7 @@ function logout() {
         <router-link to="/zones">分区管理</router-link>
         <router-link to="/climate-logs">气候日志</router-link>
         <router-link to="/irrigation">轮灌计划</router-link>
+        <router-link to="/water-bills">水费分摊</router-link>
       </nav>
       <div class="sidebar-foot">
         <div>{{ auth.user?.username }} · {{ auth.user?.role }}</div>

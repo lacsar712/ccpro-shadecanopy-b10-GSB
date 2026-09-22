@@ -1,6 +1,6 @@
-# ShadeCanopy-01 · 分区气候日志与轮灌计划
+# ShadeCanopy-01 · 分区气候日志、轮灌计划与灌溉水费分摊
 
-温室「分区气候日志与轮灌计划」全栈种子项目（非考勤 OA、非库存）。
+温室「分区气候日志与轮灌计划」全栈种子项目（非考勤 OA、非库存），含按温室的灌溉水费分摊与封账。
 
 ## 技术栈
 
@@ -25,7 +25,7 @@
 | `admin` | `123456` | admin（管理员，可进 Django Admin） |
 | `grower` | `123456` | grower（种植员） |
 
-启动时 `entrypoint.sh` 会执行 `migrate` + `seed_data` 自动写入账号与示例业务数据。
+启动时 `entrypoint.sh` 会执行 `migrate` + `seed_data` 自动写入账号与示例业务数据。水费分摊种子覆盖四种场景：**已封账单**（g1 上月，2 笔正水量）、**可封账单**（g1 当月，2 笔正水量）、**不可封·总水量为零**（g2 当月，2 笔但合计 0 L）、**不可封·不足两笔**（g2 上月，仅 1 笔）。
 
 ## 快速启动
 
@@ -49,7 +49,17 @@ docker compose down
 3. **Zone**：greenhouseId / zoneCode / cropName / status(`idle|growing|fallow`)；同温室 zoneCode 唯一
 4. **ClimateLog**：zoneId / recordedAt / tempC / humidityPct / parUmol / co2Ppm；**humidityPct ∈ [20, 100]**
 5. **IrrigationCycle**：zoneId / startAt / durationMin / waterLiters / status(`scheduled|running|done|skipped`)
-6. **Dashboard**：温室数、growing 分区数、近 24h 气候日志数、今日 scheduled 轮灌数 → `GET /api/dashboard/`
+6. **WaterBill（灌溉水费分摊单）**：greenhouseId / periodMonth / pricePerLiter / closedAt（可空）；同温室同账期月唯一
+7. **WaterBillItem（分摊明细）**：分摊单编号 + 轮灌编号；轮灌所属分区必须属于该温室，一笔轮灌只能挂在一张未封账单上
+8. **Dashboard**：温室数、growing 分区数、近 24h 气候日志数、今日 scheduled 轮灌数 → `GET /api/dashboard/`
+
+### 水费费率与封账条件
+
+- **费率公式**：`总费用 = 总升数 × 每升单价`，四舍五入保留到分（0.01 元），与精确值误差不超过 0.01。每升单价建单时设定，精度 4 位小数（如 0.0060 元/升）。
+- **账期月**：形如 `2026-09` 的 `YYYY-MM`；同一温室同一账期月只能有一张分摊单。
+- **挂明细**：仅能挂入本温室分区下的轮灌；一笔轮灌全库最多挂在一张分摊单上；已封账单禁止再挂/移除。
+- **封账条件**（`POST /api/water-bills/{id}/close/`）：账单内**至少两笔轮灌**，且**各轮灌水量加总须为正**（> 0）。任一不满足返回 **409 Conflict**，`closedAt` 保持为空。封账后账单不可再挂明细、不可修改或删除。
+- **费用对账**（`GET /api/water-fee-reconcile/`）：按温室汇总 `greenhouseTotalFee`（各单总费用之和），与各单合计 `billsTotalFee` 的差额 `diff` 不超过 0.01。
 
 ## API 一览
 
@@ -62,6 +72,11 @@ docker compose down
 | CRUD | `/api/zones/?greenhouseId=&status=` |
 | CRUD | `/api/climate-logs/?zoneId=` |
 | CRUD | `/api/irrigation-cycles/?zoneId=&status=` |
+| CRUD | `/api/water-bills/?greenhouseId=&periodMonth=&closed=true\|false` |
+| POST | `/api/water-bills/{id}/items/`（挂入轮灌，body: `{"irrigationCycleIds":[1,2]}`） |
+| POST | `/api/water-bills/{id}/items/{itemId}/remove/`（移除明细，仅未封账） |
+| POST | `/api/water-bills/{id}/close/`（封账；条件不满足 409 且 closedAt 保持空） |
+| GET | `/api/water-fee-reconcile/`（按温室汇总总费用，与各单合计核对差额 ≤ 0.01） |
 | GET | `/api/dashboard/` |
 
 字段对外使用 camelCase（如 `areaM2`、`zoneCode`、`humidityPct`）。

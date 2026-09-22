@@ -5,7 +5,14 @@ from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from core.models import ClimateLog, Greenhouse, IrrigationCycle, Zone
+from core.models import (
+    ClimateLog,
+    Greenhouse,
+    IrrigationCycle,
+    WaterBill,
+    WaterBillItem,
+    Zone,
+)
 
 User = get_user_model()
 
@@ -162,9 +169,121 @@ class Command(BaseCommand):
             ]
         )
 
+        # ---- 水费分摊演示数据（当前月/上月，含已封、可封、不可封） ----
+        current_anchor = now.replace(
+            day=min(15, now.day), hour=9, minute=0, second=0, microsecond=0
+        )
+        if current_anchor > now:
+            current_anchor -= timedelta(days=1)
+        prev_month_anchor = (
+            (current_anchor.replace(day=1) - timedelta(days=1))
+            .replace(day=15, hour=9, minute=0, second=0, microsecond=0)
+        )
+        current_period = current_anchor.strftime("%Y-%m")
+        prev_period = prev_month_anchor.strftime("%Y-%m")
+
+        # g1 上月两笔（已封账单）
+        prev_c1 = IrrigationCycle.objects.create(
+            zone=z1,
+            start_at=prev_month_anchor,
+            duration_min=25,
+            water_liters=Decimal("220.00"),
+            status=IrrigationCycle.STATUS_DONE,
+        )
+        prev_c2 = IrrigationCycle.objects.create(
+            zone=z2,
+            start_at=prev_month_anchor + timedelta(hours=2),
+            duration_min=20,
+            water_liters=Decimal("130.00"),
+            status=IrrigationCycle.STATUS_DONE,
+        )
+        # g1 当月两笔（可封账单）
+        curr_c1 = IrrigationCycle.objects.create(
+            zone=z1,
+            start_at=current_anchor,
+            duration_min=25,
+            water_liters=Decimal("200.00"),
+            status=IrrigationCycle.STATUS_DONE,
+        )
+        curr_c2 = IrrigationCycle.objects.create(
+            zone=z2,
+            start_at=current_anchor + timedelta(hours=2),
+            duration_min=20,
+            water_liters=Decimal("150.00"),
+            status=IrrigationCycle.STATUS_DONE,
+        )
+        # g2 当月两笔但总水量为 0（不可封：总水量非正）
+        zero_c1 = IrrigationCycle.objects.create(
+            zone=z4,
+            start_at=current_anchor + timedelta(hours=1),
+            duration_min=30,
+            water_liters=Decimal("0.00"),
+            status=IrrigationCycle.STATUS_DONE,
+        )
+        zero_c2 = IrrigationCycle.objects.create(
+            zone=z5,
+            start_at=current_anchor + timedelta(hours=3),
+            duration_min=15,
+            water_liters=Decimal("0.00"),
+            status=IrrigationCycle.STATUS_SKIPPED,
+        )
+        # g2 上月仅一笔（不可封：不足两笔）
+        single_c1 = IrrigationCycle.objects.create(
+            zone=z4,
+            start_at=prev_month_anchor + timedelta(hours=1),
+            duration_min=30,
+            water_liters=Decimal("50.00"),
+            status=IrrigationCycle.STATUS_DONE,
+        )
+
+        closed_bill = WaterBill.objects.create(
+            greenhouse=g1,
+            period_month=prev_period,
+            price_per_liter=Decimal("0.0050"),
+            closed_at=timezone.now(),
+        )
+        WaterBillItem.objects.bulk_create(
+            [
+                WaterBillItem(bill=closed_bill, irrigation_cycle=prev_c1),
+                WaterBillItem(bill=closed_bill, irrigation_cycle=prev_c2),
+            ]
+        )
+
+        ready_bill = WaterBill.objects.create(
+            greenhouse=g1,
+            period_month=current_period,
+            price_per_liter=Decimal("0.0060"),
+        )
+        WaterBillItem.objects.bulk_create(
+            [
+                WaterBillItem(bill=ready_bill, irrigation_cycle=curr_c1),
+                WaterBillItem(bill=ready_bill, irrigation_cycle=curr_c2),
+            ]
+        )
+
+        zero_bill = WaterBill.objects.create(
+            greenhouse=g2,
+            period_month=current_period,
+            price_per_liter=Decimal("0.0060"),
+        )
+        WaterBillItem.objects.bulk_create(
+            [
+                WaterBillItem(bill=zero_bill, irrigation_cycle=zero_c1),
+                WaterBillItem(bill=zero_bill, irrigation_cycle=zero_c2),
+            ]
+        )
+
+        short_bill = WaterBill.objects.create(
+            greenhouse=g2,
+            period_month=prev_period,
+            price_per_liter=Decimal("0.0050"),
+        )
+        WaterBillItem.objects.create(bill=short_bill, irrigation_cycle=single_c1)
+
         self.stdout.write(
             self.style.SUCCESS(
                 f"种子完成：温室 {Greenhouse.objects.count()}，分区 {Zone.objects.count()}，"
-                f"气候 {ClimateLog.objects.count()}，轮灌 {IrrigationCycle.objects.count()}"
+                f"气候 {ClimateLog.objects.count()}，轮灌 {IrrigationCycle.objects.count()}，"
+                f"水费分摊单 {WaterBill.objects.count()}（含已封/可封/不可封）"
             )
         )
