@@ -1,6 +1,13 @@
 from django.contrib import admin
 
-from .models import ClimateLog, Greenhouse, IrrigationCycle, Zone
+from .models import (
+    ClimateLog,
+    Greenhouse,
+    IrrigationCycle,
+    WaterShareBill,
+    WaterShareEntry,
+    Zone,
+)
 
 
 @admin.register(Greenhouse)
@@ -26,3 +33,27 @@ class ClimateLogAdmin(admin.ModelAdmin):
 class IrrigationCycleAdmin(admin.ModelAdmin):
     list_display = ("id", "zone", "start_at", "duration_min", "water_liters", "status")
     list_filter = ("status", "zone")
+
+
+class WaterShareEntryInline(admin.TabularInline):
+    model = WaterShareEntry
+    extra = 0
+
+
+@admin.register(WaterShareBill)
+class WaterShareBillAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "greenhouse",
+        "billing_month",
+        "price_per_liter",
+        "sealed_at",
+    )
+    list_filter = ("greenhouse", "billing_month")
+    inlines = [WaterShareEntryInline]
+
+
+@admin.register(WaterShareEntry)
+class WaterShareEntryAdmin(admin.ModelAdmin):
+    list_display = ("id", "bill", "cycle", "created_at")
+    list_filter = ("bill__greenhouse",)

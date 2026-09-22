@@ -1,7 +1,9 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import api from '../api'
 
+const router = useRouter()
 const list = ref([])
 const error = ref('')
 const editingId = ref(null)
@@ -65,6 +67,10 @@ async function remove(id) {
   await load()
 }
 
+function goWaterShares(row) {
+  router.push({ name: 'water-shares', params: { greenhouseId: row.id } })
+}
+
 onMounted(load)
 </script>
 
@@ -115,6 +121,7 @@ onMounted(load)
             <td>{{ row.notes }}</td>
             <td class="actions">
               <button class="btn ghost" @click="edit(row)">编辑</button>
+              <button class="btn secondary" @click="goWaterShares(row)">水费分摊</button>
               <button class="btn danger" @click="remove(row.id)">删除</button>
             </td>
           </tr>
